@@ -6,7 +6,7 @@
 
 ##### USER INPUT REQUIRED:
 ### Edit this ScriptPath to point to the directory containing the downloaded scripts
-ScriptPath=/home/user/scripts  #Location of downloaded python and shell scripts
+ScriptPath=/home/sophie/software/ #Location of downloaded python and shell scripts
 
 x=$1
 y=${x%.*} 
