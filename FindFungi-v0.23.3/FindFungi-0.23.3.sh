@@ -1,11 +1,11 @@
 #!/bin/sh
 # Usage: ./FindFungi-0.23.sh /path/to/FASTA-file.fastq File-name
-# Author: Paul Donovan 
+# Author: Paul Donovan
 # Email: pauldonovandonegal@gmail.com
 # 11-Jul-2018
 
 echo "Started at $(date)"
-StartTime="Pipeline initiated at $(date)" 
+StartTime="Pipeline initiated at $(date)"
 
 ### Precautionary measures before running analysis
 if [ $# -eq 0 ]; then
@@ -19,27 +19,27 @@ z=$2
 
 
 ##### USER INPUT REQUIRED:
-ScriptPath=/home/user/scripts  #Location of downloaded python and shell scripts
-PreDir=/home/user/Some_Directory/$z  #Location you want FindFungi to build the analysis
-KrakenDir=/home/user/Location_of_Kraken_Databases  #Location of the 32 downloaded Kraken databases
-FungTaxDir=/home/user/Location_of_Fungal-Taxids.txt  #Location of the Fungal taxids and PipelineSummary files from GitHub
-BLAST_DB_Dir=/home/user/Location_of_BLAST_Databases  #Location of the 949 downloaded BLAST databases
+ScriptPath=/home/sophie/software/FindFungi/FindFungi-v0.23.3 #Location of downloaded python and shell scripts
+PreDir=/lovelace/sophie_scratch/fungal_analysis/$z  #Location you want FindFungi to build the analysis
+KrakenDir=/lovelace/sophie_scratch/fungal_analysis/Kraken_32B  #Location of the 32 downloaded Kraken databases
+FungTaxDir=/home/sophie/software/FindFungi/FindFungi-v0.23.3/Fungal-Taxids.txt  #Location of the Fungal taxids and PipelineSummary files from GitHub
+BLAST_DB_Dir=/lovelace/sophie_scratch/fungal_analysis/FungalGenomeDatabases_EqualContigs  #Location of the 949 downloaded BLAST databases
 #####
 
 
-Dir=$PreDir/FindFungi 
+Dir=$PreDir/FindFungi
 
 if [ ! -d $PreDir ]; then
 	mkdir $PreDir
 	echo "Number of reads in the raw input: " >> $PreDir/Run_Statistics.txt
-	LinesInReadsIn=$(wc -l $x | awk '{print $1}') 
+	LinesInReadsIn=$(wc -l $x | awk '{print $1}')
 	ReadsIn=$((LinesInReadsIn/4))
 	echo $ReadsIn >> $PreDir/Run_Statistics.txt
 	mkdir $PreDir/ReadTrimming
 	bsub -K -q C skewer -l 30 -q 15 -t 30 -o $PreDir/ReadTrimming/$z $x &
 	wait
 	echo "Number of reads after trimming: " >> $PreDir/Run_Statistics.txt
-	LinesInReadsLeft=$(wc -l $PreDir/ReadTrimming/$z-trimmed.fastq | awk '{print $1}') 
+	LinesInReadsLeft=$(wc -l $PreDir/ReadTrimming/$z-trimmed.fastq | awk '{print $1}')
 	ReadsLeft=$((LinesInReadsLeft/4))
 	echo $ReadsLeft >> $PreDir/Run_Statistics.txt
 	mkdir $PreDir/FASTA
@@ -48,11 +48,11 @@ if [ ! -d $PreDir ]; then
 	SplitN=$((LineCt/32 + 1))
 	SplitI=$(printf "%.0f" $SplitN)
 	split -l $SplitI $PreDir/FASTA/$z.fna $PreDir/FASTA/Split.
-	for d in $PreDir/FASTA/*Split.*; do 
+	for d in $PreDir/FASTA/*Split.*; do
 		bsub -K -q C sed -i 's/\ /_/g' $d & #Replace whitespace with underscore
 	done
 	wait
-	cat $PreDir/FASTA/*Split.* > $PreDir/FASTA/$z.final.fna  
+	cat $PreDir/FASTA/*Split.* > $PreDir/FASTA/$z.final.fna
 	mkdir $Dir
 	mkdir $Dir/Processing
 	mkdir $Dir/Processing/SplitFiles_Kraken
@@ -60,17 +60,17 @@ if [ ! -d $PreDir ]; then
 	mkdir $Dir/Results/BLAST_Processing
 	mkdir $Dir/bsub_reports
 
-### Release the Kraken 
+### Release the Kraken
 for i in $(seq 1 32); do
 	bsub -K -q C kraken --db $KrakenDir/Kraken_$i --threads 30 --fasta-input $PreDir/FASTA/$z.final.fna --output $Dir/Processing/SplitFiles_Kraken/$z.$i &
-done	
+done
 wait
 for d in $Dir/Processing/SplitFiles_Kraken/*; do
     File=$(basename $d)
     grep ^C $d > $Dir/Processing/$File.Classified.tsv
     wait
 done
-wait 
+wait
 cat $Dir/Processing/*Classified* | awk '{print $2}' | sort | uniq > $Dir/Processing/AllClassified_$z #Get all classified reads (no duplicates)
 
 ### Gather reads predicted as fungal by Kraken and reformat for later use
@@ -84,7 +84,7 @@ SplitInt=$(printf "%.0f" $SplitNum)
 
 for d in $Dir/Processing/SplitFiles_Kraken/*; do #Sort individual Kraken output files
 	File=$(basename $d)
-	#bsub -K -q C sort_parallel --parallel 16 -o $Dir/Processing/SplitFiles_Kraken/sorted_$File -k2,2 $d & 
+	#bsub -K -q C sort_parallel --parallel 16 -o $Dir/Processing/SplitFiles_Kraken/sorted_$File -k2,2 $d &
 	sort -k2,2 $d > $Dir/Processing/SplitFiles_Kraken/sorted_$File &
 
 done
@@ -150,7 +150,7 @@ wait
 cat $Dir/Results/BLAST_Processing/Skewness* > $Dir/Results/BLAST_Processing/All-Skewness-Scores &
 
 ### Combine Kraken results with Skewness scores
-bsub -K -q C python2.7 $ScriptPath/Consensus-CrossRef-Skewness_V2.py $Dir/Processing/Consensus.sorted.$z.All-Kraken-Results.tsv $Dir/Results/BLAST_Processing/All-Skewness-Scores $Dir/Results/Final_Results_$z.tsv & 
+bsub -K -q C python2.7 $ScriptPath/Consensus-CrossRef-Skewness_V2.py $Dir/Processing/Consensus.sorted.$z.All-Kraken-Results.tsv $Dir/Results/BLAST_Processing/All-Skewness-Scores $Dir/Results/Final_Results_$z.tsv &
 wait
 
 ### Gather all taxonomical predictions and reformat to parsable format
@@ -170,7 +170,7 @@ wait
 cat $Dir/Processing/ReadNames*.fsa > $Dir/Processing/All-Reads-From-BLAST_$z.fsa
 
 ### Print reads with predictions to file
-bsub -K -q C python2.7 $ScriptPath/ReadNames-to-FASTA_V8.py $Dir/Results/Final_Results_$z.tsv_AllResults.tsv $Dir/Processing/All-Reads-From-BLAST_$z.fsa $Dir/${z}_v0.23_FungalReads.tsv_AllResults.fsa & 
+bsub -K -q C python2.7 $ScriptPath/ReadNames-to-FASTA_V8.py $Dir/Results/Final_Results_$z.tsv_AllResults.tsv $Dir/Processing/All-Reads-From-BLAST_$z.fsa $Dir/${z}_v0.23_FungalReads.tsv_AllResults.fsa &
 bsub -K -q C python2.7 $ScriptPath/ReadNames-to-FASTA_V8.py $Dir/Results/Final_Results_$z.tsv $Dir/Processing/All-Reads-From-BLAST_$z.fsa $Dir/${z}_v0.23_FungalReads.fsa &
 
 ### Create text summary of pipeline
@@ -209,7 +209,7 @@ enscript -B -o $PreDir/FindFungi-TextFile.ps -f Times-Roman12 $PreDir/FindFungi-
 ps2pdf $PreDir/FindFungi-TextFile.ps $PreDir/FindFungi-TextFile.pdf
 enscript -B -o $Dir/Results/Final_Results_$z-lca.sorted.Fungi.ps -f Times-Roman12 $Dir/Results/Final_Results_$z-lca.sorted.csv
 ps2pdf $Dir/Results/Final_Results_$z-lca.sorted.Fungi.ps $Dir/Results/Final_Results_$z-lca.sorted.Fungi.pdf
-gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -dPDFFitToPage -dPDFSETTINGS=/prepress -sOutputFile=$Dir/${FungalReadPercentage2}_${z}.Results.pdf $PreDir/FindFungi-TextFile.pdf $Dir/Results/$z.Wordcloud.pdf $Dir/Results/Cropped.$z.TreeLineage.pdf $Dir/Results/Final_Results_$z-lca.sorted.Fungi.pdf 
+gs -dBATCH -dNOPAUSE -q -sDEVICE=pdfwrite -dPDFFitToPage -dPDFSETTINGS=/prepress -sOutputFile=$Dir/${FungalReadPercentage2}_${z}.Results.pdf $PreDir/FindFungi-TextFile.pdf $Dir/Results/$z.Wordcloud.pdf $Dir/Results/Cropped.$z.TreeLineage.pdf $Dir/Results/Final_Results_$z-lca.sorted.Fungi.pdf
 wait
 
 ### Clean up
@@ -219,4 +219,3 @@ mv *.std* $Dir/bsub_reports/
 fi
 
 echo "Finished at $(date)"
-
